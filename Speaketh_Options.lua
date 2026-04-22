@@ -100,6 +100,10 @@ local function MakeCodeDialog(name, width, height)
     closeBtn:SetScript("OnClick", function() f:Hide() end)
 
     f:Hide()
+
+    -- Escape key closes this dialog (stacks correctly with other open panels).
+    tinsert(UISpecialFrames, name)
+
     return f
 end
 
@@ -1721,6 +1725,11 @@ local function BuildFrame()
     grip:SetScript("OnMouseUp",   function() f:StopMovingOrSizing() end)
 
     _mainFrame = f
+
+    -- Escape closes the options panel in the same stacking order as any
+    -- native Blizzard UI panel.
+    tinsert(UISpecialFrames, "SpeakethOptionsFrame")
+
     return f
 end
 
