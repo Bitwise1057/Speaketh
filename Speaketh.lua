@@ -473,6 +473,11 @@ local function Speaketh_ProcessOutgoing(editBox)
 
     -- Emote with language: only translate quoted portions
     if quotesOnly then
+        -- Broadcast the original emote text so other Speaketh users can
+        -- decode the translated quoted spans in their chat filter.
+        local target = editBox.GetAttribute and editBox:GetAttribute("tellTarget") or nil
+        pcall(Speaketh_SendOriginal, text, langKey, chatType, target)
+
         local finalMsg = ApplyDialectToQuotes(text, langKey)
         if not finalMsg or finalMsg == "" then return end
         _inTranslation = true
@@ -673,10 +678,80 @@ local FILTER_EVENTS = {
     "CHAT_MSG_WHISPER",
 }
 
+-- Incoming filter for CHAT_MSG_EMOTE. Emotes carry translated quoted spans
+-- inline (e.g. |She says "[Lur mak zug]" quietly.|) rather than a top-level
+-- [Language] prefix, so they need their own filter. For each quoted span we
+-- check whether the cached original for this sender contains a corresponding
+-- quoted span, and if so swap the translated text back to the original (or a
+-- fluency-blended version). The surrounding non-quoted emote text is preserved.
+local function Speaketh_EmoteChatFilter(self, event, msg, sender, ...)
+    if not msg or type(msg) ~= "string" then return false end
+    if not Speaketh_Languages or not Speaketh_Fluency then return false end
+
+    -- We need a cached original to decode against. Peek without popping first
+    -- so we can check langKey before committing.
+    local pending = _pendingOriginals and _pendingOriginals[sender]
+    if not pending then return false end
+
+    local langKey = pending.langKey
+    if not langKey or langKey == "None" then return false end
+
+    local fluency = Speaketh_Fluency:Get(langKey)
+    if fluency == 0 then return false end
+
+    -- Passive learning
+    local learnEnabled = not (Speaketh_Char and Speaketh_Char.passiveLearn == false)
+    if learnEnabled and fluency < 100 then
+        if math.random(1, 10) == 1 then
+            Speaketh_Fluency:Learn(langKey, 1)
+        end
+    end
+
+    -- Only proceed if the emote actually contains a quoted span
+    if not msg:find('"', 1, true) then return false end
+
+    -- Pop the original now that we know we'll use it
+    local original = PopPending(sender, langKey)
+    if not original then return false end
+
+    -- Build a list of original quoted spans from the cached original emote
+    local origQuotes = {}
+    local p = 1
+    while p <= #original do
+        local qs = original:find('"', p, true)
+        if not qs then break end
+        local qe = original:find('"', qs + 1, true)
+        if not qe then break end
+        table.insert(origQuotes, original:sub(qs + 1, qe - 1))
+        p = qe + 1
+    end
+    if #origQuotes == 0 then return false end
+
+    -- Replace each quoted span in the received (translated) emote with the
+    -- original (or fluency-blended) text, preserving the surrounding emote.
+    local quoteIdx = 0
+    local modified = false
+    local result = msg:gsub('"([^"]*)"', function(translated)
+        quoteIdx = quoteIdx + 1
+        local orig = origQuotes[quoteIdx]
+        if not orig then return '"' .. translated .. '"' end
+        modified = true
+        if fluency >= 100 then
+            return '"' .. orig .. '"'
+        else
+            return '"' .. BlendMessages(orig, translated, fluency) .. '"'
+        end
+    end)
+
+    if not modified then return false end
+    return false, result, sender, ...
+end
+
 local function Speaketh_RegisterChatFilters()
     for _, event in ipairs(FILTER_EVENTS) do
         ChatFrame_AddMessageEventFilter(event, Speaketh_ChatFilter)
     end
+    ChatFrame_AddMessageEventFilter("CHAT_MSG_EMOTE", Speaketh_EmoteChatFilter)
 end
 
 -- ============================================================
