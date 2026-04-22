@@ -189,6 +189,10 @@ function Speaketh_UI:CreateSpeakWindow()
     win:SetClampedToScreen(true)
     win:Hide()
 
+    -- Register with the game's escape-key handler so pressing Escape closes
+    -- this window in the same stacking order as any native Blizzard panel.
+    tinsert(UISpecialFrames, "SpeakethWindow")
+
     -- Dark parchment background matching options panel
     if win.SetBackdrop then
         win:SetBackdrop({
