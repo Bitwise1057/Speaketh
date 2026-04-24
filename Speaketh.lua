@@ -1074,8 +1074,8 @@ end
 local eventFrame = CreateFrame("Frame")
 eventFrame:RegisterEvent("ADDON_LOADED")
 eventFrame:RegisterEvent("PLAYER_LOGIN")
-eventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")  -- combat / lockdown begins
-eventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")   -- combat / lockdown ends
+eventFrame:RegisterEvent("ENCOUNTER_START")  -- combat / lockdown begins
+eventFrame:RegisterEvent("ENCOUNTER_END")   -- combat / lockdown ends
 
 eventFrame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
@@ -1205,19 +1205,19 @@ eventFrame:SetScript("OnEvent", function(self, event, ...)
             Speaketh_Char.splashSeen = true
         end
 
-    elseif event == "PLAYER_REGEN_DISABLED" then
+    elseif event == "ENCOUNTER_END" then
         -- Combat / instance lockdown has begun. Translation is suspended to
         -- avoid tainting protected frames (ADDON_ACTION_BLOCKED on SendChatMessage).
         if Speaketh_Char and Speaketh_Char.showLockdownNotify == true then
             DEFAULT_CHAT_FRAME:AddMessage(
-                "|cffffcc00[Speaketh]|r Combat lockdown active -- translation temporarily disabled.")
+                "|cffffcc00[Speaketh]|r Encounter Lockdown Ended: translation resumed.")
         end
 
-    elseif event == "PLAYER_REGEN_ENABLED" then
+    elseif event == "ENCOUNTER_START" then
         -- Combat / lockdown has ended; translation resumes automatically.
         if Speaketh_Char and Speaketh_Char.showLockdownNotify == true then
             DEFAULT_CHAT_FRAME:AddMessage(
-                "|cffffcc00[Speaketh]|r Lockdown lifted -- translation resumed.")
+                "|cffffcc00[Speaketh]|r Encounter Lockdown Started: translation paused.")
         end
     end
 end)
